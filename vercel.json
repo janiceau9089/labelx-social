@@ -1,8 +1,5 @@
-cat > vercel.json <<'EOF'
 {
   "crons": [
     { "path": "/api/cron/collect-news", "schedule": "0 1 * * *" }
   ]
 }
-EOF
-git add vercel.json && git commit -m "Daily cron for Hobby plan" && git push
