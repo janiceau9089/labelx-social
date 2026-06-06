@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, authFetch } from "@/lib/useAuth";
+import { AUTH_DISABLED } from "@/lib/config";
 import type { User } from "firebase/auth";
 
 /* ---------- types ---------- */
@@ -165,16 +166,16 @@ export default function Workflow() {
   const [carIdx, setCarIdx] = useState(0);
   const [busy, setBusy] = useState("");
 
-  useEffect(() => { if (!loading && !user) router.replace("/"); }, [loading, user, router]);
+  useEffect(() => { if (!AUTH_DISABLED && !loading && !user) router.replace("/"); }, [loading, user, router]);
   useEffect(() => {
-    if (!user) return;
+    if (!user && !AUTH_DISABLED) return;
     authFetch(user, "/api/news").then(async (r) => { if (r.ok) { const d = await r.json(); setChannels(d.channels || []); setNews(d.news || []); } });
   }, [user]);
 
   const setPost = useCallback((id: string, patch: Partial<Post>) => setPosts((all) => ({ ...all, [id]: { ...all[id], ...patch } })), []);
   const ordered = () => channels.filter((c) => selected.includes(c.id) && posts[c.id]);
 
-  if (!user) return <div className="wrap">Loading…</div>;
+  if (!user && !AUTH_DISABLED) return <div className="wrap">Loading…</div>;
 
   async function openArticle(a: Article) {
     setArticle(a); setSummary(null); setSelected([]); setPosts({}); setStep(2); setBusy("summary");
@@ -273,10 +274,10 @@ export default function Workflow() {
       <header>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/labelx.png" alt="LabelX" style={{ height: 26, display: "block" }} />
-        <span className="role-tag">{user.email}</span>
+        <span className="role-tag">{user?.email || "demo"}</span>
         <div className="spacer" />
         <nav><a href="/admin" style={{ color: "var(--mut)", padding: "8px 12px", textDecoration: "none" }}>Admin</a></nav>
-        <button className="btn ghost sm" onClick={() => signOut()}>Sign out</button>
+        {!AUTH_DISABLED && <button className="btn ghost sm" onClick={() => signOut()}>Sign out</button>}
       </header>
 
       <div className="wrap">

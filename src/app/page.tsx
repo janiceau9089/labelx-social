@@ -2,12 +2,13 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/useAuth";
+import { AUTH_DISABLED } from "@/lib/config";
 
 export default function Home() {
   const { user, loading, signIn } = useAuth();
   const router = useRouter();
   useEffect(() => {
-    if (user) router.replace("/workflow");
+    if (AUTH_DISABLED || user) router.replace("/workflow");
   }, [user, router]);
 
   return (
