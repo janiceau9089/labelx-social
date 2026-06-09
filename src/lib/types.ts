@@ -12,6 +12,13 @@ export interface Channel {
   allowColor: boolean;     // may the user change the frame color?
   tags: string[];          // 3 pre-ruled brand hashtags
   cta: string;             // default call-to-action text
+  // Brand identity fields (added for admin CRUD)
+  logoInitial?: string;    // 1-2 char avatar fallback
+  logoUrl?: string;        // Firebase Storage URL (Phase 2)
+  frameStyle?: "solid" | "gradient" | "outline" | "none";
+  description?: string;    // internal audience/page note
+  writingDo?: string[];    // writing rules fed into AI rewrite prompt
+  writingDont?: string[];  // writing don'ts fed into AI rewrite prompt
 }
 
 export interface StyleProfile {
