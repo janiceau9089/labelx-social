@@ -14,6 +14,7 @@ import type { Channel, NewsSource } from "@/lib/types";
 export interface BrandChannel extends Channel {
   logoInitial?: string;       // 1-2 char fallback if no logo URL
   logoUrl?: string;           // URL to uploaded logo (Firebase Storage path)
+  logoDataUrl?: string;       // base64 data URL stored in Firestore (small logos only)
   frameStyle?: "solid" | "gradient" | "outline" | "none";
   writingDo?: string[];       // do rules for AI rewrite
   writingDont?: string[];     // don't rules for AI rewrite
