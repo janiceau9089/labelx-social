@@ -14,7 +14,7 @@ import type { User } from "firebase/auth";
 /* ---------- types ---------- */
 type Channel = {
   id: string; name: string; platform: "FB" | "IG"; tone: string; age: string;
-  color: string; allowColor: boolean; tags: string[]; cta: string;
+  color: string; allowColor: boolean; tags: string[]; cta: string; pageUrl?: string;
 };
 type Article = {
   id: string; source: string; title: string; url: string;
@@ -413,7 +413,7 @@ export default function Workflow() {
                     <div style={{ fontWeight: 600, fontSize: 12.5 }}>{p.title}</div>
                     <div className="fieldlab">Caption + hashtags + CTA <span className="retry" onClick={() => copy(fullText(p))} title="Copy all">⧉</span></div>
                     <div className="muted" style={{ whiteSpace: "pre-wrap", fontSize: 12, lineHeight: 1.55 }}>{fullText(p)}</div>
-                    <div className="subactions" style={{ justifyContent: "center" }}><button className="btn mini" onClick={() => downloadAll(c.id)}>⬇ Download {p.photos.length > 1 ? `(${p.photos.length})` : ""}</button><button className="btn ghost mini" onClick={() => copy(fullText(p))}>⧉ Copy</button></div>
+                    <div className="subactions" style={{ justifyContent: "center" }}><button className="btn mini" onClick={() => downloadAll(c.id)}>⬇ Download {p.photos.length > 1 ? `(${p.photos.length})` : ""}</button><button className="btn ghost mini" onClick={() => copy(fullText(p))}>⧉ Copy</button>{c.pageUrl && <a className="btn ghost mini" href={c.pageUrl} target="_blank" rel="noreferrer">{c.platform === "IG" ? "📷" : "👍"} Open page</a>}</div>
                   </div>
                 );
               })}
