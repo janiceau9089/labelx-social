@@ -13,7 +13,7 @@ export async function GET(req: Request) {
     return r as Response;
   }
   const [news, channels] = await Promise.all([
-    adminDb.collection("articleCandidates").orderBy("score", "desc").limit(50).get(),
+    adminDb.collection("articleCandidates").orderBy("score", "desc").limit(100).get(),
     adminDb.collection("config").doc("channels").collection("items").get(),
   ]);
   return NextResponse.json({

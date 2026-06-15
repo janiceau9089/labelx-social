@@ -165,12 +165,21 @@ export default function Workflow() {
   const [posts, setPosts] = useState<Record<string, Post>>({});
   const [carIdx, setCarIdx] = useState(0);
   const [busy, setBusy] = useState("");
+  const [newsLoading, setNewsLoading] = useState(false);
+
+  const fetchNews = useCallback(async () => {
+    if (!user && !AUTH_DISABLED) return;
+    setNewsLoading(true);
+    try {
+      const r = await authFetch(user, "/api/news");
+      if (r.ok) { const d = await r.json(); setChannels(d.channels || []); setNews(d.news || []); }
+    } finally {
+      setNewsLoading(false);
+    }
+  }, [user]);
 
   useEffect(() => { if (!AUTH_DISABLED && !loading && !user) router.replace("/"); }, [loading, user, router]);
-  useEffect(() => {
-    if (!user && !AUTH_DISABLED) return;
-    authFetch(user, "/api/news").then(async (r) => { if (r.ok) { const d = await r.json(); setChannels(d.channels || []); setNews(d.news || []); } });
-  }, [user]);
+  useEffect(() => { fetchNews(); }, [fetchNews]);
 
   const setPost = useCallback((id: string, patch: Partial<Post>) => setPosts((all) => ({ ...all, [id]: { ...all[id], ...patch } })), []);
   const ordered = () => channels.filter((c) => selected.includes(c.id) && posts[c.id]);
@@ -289,7 +298,7 @@ export default function Workflow() {
         {/* STEP 1 */}
         {step === 1 && (
           <>
-            <div className="head"><h2>News</h2></div>
+            <div className="head"><h2>News</h2><span className="muted" style={{ fontSize: 13 }}>{news.length} articles</span><div className="spacer" /><button className="btn ghost sm" onClick={fetchNews} disabled={newsLoading}>{newsLoading ? "Refreshing…" : "↻ Refresh"}</button></div>
             <div className="tabs">{CATS.map((c) => <button key={c.key} className={"tab " + (cat === c.key ? "on" : "")} onClick={() => setCat(c.key)}>{c.name}</button>)}</div>
             <div className="card list">
               {list.length === 0 && <div className="muted" style={{ padding: 12 }}>No news yet. Run the collector or wait for the hourly cron.</div>}
