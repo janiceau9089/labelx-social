@@ -152,6 +152,17 @@ const sources = [
   { id: "yeah1", name: "Yeah1", rssUrl: "https://yeah1.com/feed", credibility: 6, active: true },
   { id: "kenh14-cine", name: "Kenh14 – Cine", rssUrl: "https://kenh14.vn/rss/cine.rss", credibility: 8, active: true },
   { id: "kenh14-musik", name: "Kenh14 – Musik", rssUrl: "https://kenh14.vn/rss/musik.rss", credibility: 8, active: true },
+  // Facebook fanpages via rss.app proxy
+  { id: "fb-theanh28", name: "Theanh28 Entertainment", rssUrl: "https://rss.app/feeds/VZEzLw2ZfwetzehS.xml", credibility: 7, active: true },
+  { id: "fb-theanh28-trending", name: "Theanh28 Trending", rssUrl: "https://rss.app/feeds/pj7QFql2RMMTvamG.xml", credibility: 7, active: true },
+  { id: "fb-bi-mat-showbiz", name: "Bí Mật Showbiz", rssUrl: "https://rss.app/feeds/mj5uWZ3ZVxXmYBHp.xml", credibility: 6, active: true },
+  { id: "fb-hong-hot-showbiz", name: "Hóng hớt Showbiz", rssUrl: "https://rss.app/feeds/HKmRHq8QdFHaMqzW.xml", credibility: 6, active: true },
+  { id: "fb-this-is-mo-hon", name: "This is mỏ hỗn", rssUrl: "https://rss.app/feeds/3z3YmFjGu7OSmpb1.xml", credibility: 5, active: true },
+  { id: "fb-ba-tam-showbiz", name: "Bà tám showbiz", rssUrl: "https://rss.app/feeds/cgx7Ho2AHabaFZbv.xml", credibility: 6, active: true },
+  { id: "fb-mantv", name: "ManTV", rssUrl: "https://rss.app/feeds/fua8inbA9M7l1W0A.xml", credibility: 6, active: true },
+  { id: "fb-bat-showbiz", name: "Bậtshowbiz", rssUrl: "https://rss.app/feeds/aIMy2mFqHDnH4uFB.xml", credibility: 5, active: true },
+  { id: "fb-dai-tieng-noi-genz", name: "Đài tiếng nói GenZ", rssUrl: "https://rss.app/feeds/MEjhTHK8VEUy1Ptz.xml", credibility: 5, active: true },
+  { id: "fb-sunsee-showbiz", name: "Sunsee Showbiz", rssUrl: "https://rss.app/feeds/TaaztXbvnrLPIJW9.xml", credibility: 6, active: true },
 ];
 
 async function main() {
