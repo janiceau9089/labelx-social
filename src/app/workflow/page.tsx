@@ -14,7 +14,7 @@ import type { User } from "firebase/auth";
 /* ---------- types ---------- */
 type Channel = {
   id: string; name: string; platform: "FB" | "IG"; tone: string; age: string;
-  color: string; allowColor: boolean; tags: string[]; cta: string;
+  color: string; allowColor: boolean; tags: string[]; cta: string; pageUrl?: string; logoDataUrl?: string;
 };
 type Article = {
   id: string; source: string; title: string; url: string;
@@ -82,7 +82,20 @@ function fileToImg(file: File): Promise<HTMLImageElement> {
 }
 
 /* ---------- canvas ---------- */
-function drawCover(cv: HTMLCanvasElement | null, p: Post, source: string) {
+// Cache loaded logo images by channel id so the canvas can draw them synchronously.
+const logoCache: Record<string, HTMLImageElement> = {};
+function getLogoImg(ch: Channel, onReady: () => void): HTMLImageElement | null {
+  if (!ch.logoDataUrl) return null;
+  const cached = logoCache[ch.id];
+  if (cached) return cached.complete ? cached : null;
+  const img = new Image();
+  img.onload = onReady;
+  img.src = ch.logoDataUrl;
+  logoCache[ch.id] = img;
+  return img.complete ? img : null;
+}
+
+function drawCover(cv: HTMLCanvasElement | null, p: Post, source: string, onLogoReady?: () => void) {
   if (!cv) return;
   const x = cv.getContext("2d"); if (!x) return;
   const W = 540, H = 540, cover = p.photos[0];
@@ -108,7 +121,23 @@ function drawCover(cv: HTMLCanvasElement | null, p: Post, source: string) {
   let yy = H - b * 3 - (lines.length - 1) * lh - 16;
   lines.forEach((ln) => { x.lineWidth = 5; x.strokeStyle = sc; x.strokeText(ln, W / 2, yy); x.fillStyle = tc; x.fillText(ln, W / 2, yy); yy += lh; });
   x.textAlign = "left";
-  if (p.logo) { x.fillStyle = "rgba(255,255,255,.95)"; x.fillRect(W - b - 90, b + 12, 78, 24); x.fillStyle = "#000"; x.font = '800 12px "Wix Madefor Display",sans-serif'; x.fillText("✕LABELX", W - b - 84, b + 29); }
+  if (p.logo) {
+    const logoImg = getLogoImg(p.ch, onLogoReady || (() => {}));
+    if (logoImg) {
+      const ls = 44; const lx = W - b - ls - 10, ly = b + 10;
+      if (p.ch.platform === "IG") {
+        x.save(); x.beginPath(); x.arc(lx + ls / 2, ly + ls / 2, ls / 2, 0, Math.PI * 2); x.closePath(); x.clip();
+        x.drawImage(logoImg, lx, ly, ls, ls); x.restore();
+      } else {
+        x.save(); const r = 8; x.beginPath();
+        x.moveTo(lx + r, ly); x.arcTo(lx + ls, ly, lx + ls, ly + ls, r); x.arcTo(lx + ls, ly + ls, lx, ly + ls, r);
+        x.arcTo(lx, ly + ls, lx, ly, r); x.arcTo(lx, ly, lx + ls, ly, r); x.closePath(); x.clip();
+        x.drawImage(logoImg, lx, ly, ls, ls); x.restore();
+      }
+    } else {
+      x.fillStyle = "rgba(255,255,255,.95)"; x.fillRect(W - b - 90, b + 12, 78, 24); x.fillStyle = "#000"; x.font = '800 12px "Wix Madefor Display",sans-serif'; x.fillText("✕LABELX", W - b - 84, b + 29);
+    }
+  }
   x.fillStyle = "rgba(255,255,255,.65)"; x.font = "10px Inter,sans-serif"; x.fillText("Nguồn: " + source, b + 6, H - b - 6);
 }
 function drawPlain(cv: HTMLCanvasElement, ph: Photo) {
@@ -126,7 +155,8 @@ function drawPlain(cv: HTMLCanvasElement, ph: Photo) {
 function CoverCanvas({ id, post, source, onPan }: { id: string; post: Post; source: string; onPan?: (dx: number, dy: number) => void }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
-  useEffect(() => { drawCover(ref.current, post, source); });
+  const [, force] = useState(0);
+  useEffect(() => { drawCover(ref.current, post, source, () => force((n) => n + 1)); });
   const hasCover = !!post.photos[0]?.img;
   const draggable = !!onPan && hasCover;
   function onPointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
@@ -536,7 +566,7 @@ export default function Workflow() {
                     <div style={{ fontWeight: 600, fontSize: 12.5 }}>{p.title}</div>
                     <div className="fieldlab">Caption + hashtags + CTA <span className="retry" onClick={() => copy(fullText(p))} title="Copy all">⧉</span></div>
                     <div className="muted" style={{ whiteSpace: "pre-wrap", fontSize: 12, lineHeight: 1.55 }}>{fullText(p)}</div>
-                    <div className="subactions" style={{ justifyContent: "center" }}><button className="btn mini" onClick={() => downloadAll(c.id)}>⬇ Download {p.photos.length > 1 ? `(${p.photos.length})` : ""}</button><button className="btn ghost mini" onClick={() => copy(fullText(p))}>⧉ Copy</button></div>
+                    <div className="subactions" style={{ justifyContent: "center" }}><button className="btn mini" onClick={() => downloadAll(c.id)}>⬇ Download {p.photos.length > 1 ? `(${p.photos.length})` : ""}</button><button className="btn ghost mini" onClick={() => copy(fullText(p))}>⧉ Copy</button>{c.pageUrl && <a className="btn ghost mini" href={c.pageUrl} target="_blank" rel="noreferrer">{c.platform === "IG" ? "📷" : "👍"} Open page</a>}</div>
                   </div>
                 );
               })}
