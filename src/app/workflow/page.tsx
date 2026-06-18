@@ -200,7 +200,7 @@ export default function Workflow() {
   const [news, setNews] = useState<Article[]>([]);
   const [cat, setCat] = useState("all");
   const [sortMode, setSortMode] = useState<"score" | "newest">("score");
-  const [hideRisky, setHideRisky] = useState(false);
+  const [riskFilter, setRiskFilter] = useState<"all" | "safe" | "risky">("all");
   const [step, setStep] = useState(1);
   const [article, setArticle] = useState<Article | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -343,7 +343,8 @@ export default function Workflow() {
 
   const RISKY_FLAGS = new Set(["rumor", "unverified", "scandal"]);
   let list = news.filter((a) => cat === "all" || a.category === cat);
-  if (hideRisky) list = list.filter((a) => !a.flags?.some((f) => RISKY_FLAGS.has(f)));
+  if (riskFilter === "safe") list = list.filter((a) => !a.flags?.some((f) => RISKY_FLAGS.has(f)));
+  if (riskFilter === "risky") list = list.filter((a) => a.flags?.some((f) => RISKY_FLAGS.has(f)));
   list = [...list].sort((a, b) => sortMode === "newest" ? (b.publishedAt || 0) - (a.publishedAt || 0) : b.score - a.score);
 
   return (
@@ -415,10 +416,12 @@ export default function Workflow() {
                 <button className={"tbtn " + (sortMode === "score" ? "on" : "")} onClick={() => setSortMode("score")}>Độ tin cậy / hot</button>
                 <button className={"tbtn " + (sortMode === "newest" ? "on" : "")} onClick={() => setSortMode("newest")}>Mới nhất</button>
               </div>
-              <label style={{ display: "flex", gap: 5, alignItems: "center", cursor: "pointer" }}>
-                <input type="checkbox" checked={hideRisky} onChange={(e) => setHideRisky(e.target.checked)} />
-                <span className="muted">Ẩn tin đồn / chưa xác thực / scandal</span>
-              </label>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <span className="muted">Độ tin cậy:</span>
+                <button className={"tbtn " + (riskFilter === "all" ? "on" : "")} onClick={() => setRiskFilter("all")}>Tất cả</button>
+                <button className={"tbtn " + (riskFilter === "safe" ? "on" : "")} onClick={() => setRiskFilter("safe")}>Chính thống</button>
+                <button className={"tbtn " + (riskFilter === "risky" ? "on" : "")} onClick={() => setRiskFilter("risky")}>🔥 Tin đồn / hot</button>
+              </div>
             </div>
             <div className="card list">
               {list.length === 0 && <div className="muted" style={{ padding: 12 }}>No news yet. Run the collector or wait for the hourly cron.</div>}
