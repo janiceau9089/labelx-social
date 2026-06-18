@@ -166,6 +166,8 @@ export default function Workflow() {
   const [carIdx, setCarIdx] = useState(0);
   const [busy, setBusy] = useState("");
   const [manualUrl, setManualUrl] = useState("");
+  const [manualText, setManualText] = useState("");
+  const [manualMode, setManualMode] = useState<"link" | "text">("link");
   const [manualErr, setManualErr] = useState("");
 
   useEffect(() => { if (!AUTH_DISABLED && !loading && !user) router.replace("/"); }, [loading, user, router]);
@@ -194,6 +196,15 @@ export default function Workflow() {
     try { host = new URL(url).hostname.replace(/^www\./, ""); } catch { setManualErr("Link không hợp lệ"); return; }
     const a: Article = { id: "manual-" + Date.now(), source: host, title: "", url, category: "domestic", excerpt: "", score: 0, flags: [] };
     setManualUrl("");
+    await openArticle(a);
+  }
+  async function openManualText() {
+    setManualErr("");
+    const text = manualText.trim();
+    if (!text) return;
+    if (text.length < 30) { setManualErr("Đoạn văn quá ngắn, vui lòng nhập thêm nội dung"); return; }
+    const a: Article = { id: "manual-" + Date.now(), source: "Nhập tay", title: "", url: "", category: "domestic", excerpt: text, score: 0, flags: [] };
+    setManualText("");
     await openArticle(a);
   }
   function toggleChannel(id: string) { setSelected((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id]); }
@@ -304,20 +315,44 @@ export default function Workflow() {
           <>
             <div className="head"><h2>News</h2></div>
             <div className="card" style={{ padding: 12, marginBottom: 12 }}>
-              <div className="fieldlab">Dán link tin tức (báo, fanpage, bài viết bất kỳ)</div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input
-                  className="mini"
-                  style={{ flex: 1 }}
-                  placeholder="https://..."
-                  value={manualUrl}
-                  onChange={(e) => setManualUrl(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") openManualUrl(); }}
-                />
-                <button className="btn sm" disabled={!manualUrl.trim() || busy === "summary"} onClick={openManualUrl}>
-                  {busy === "summary" ? "Đang xử lý…" : "Dùng link này →"}
-                </button>
+              <div className="tabs" style={{ marginBottom: 10 }}>
+                <button className={"tab " + (manualMode === "link" ? "on" : "")} onClick={() => { setManualMode("link"); setManualErr(""); }}>Link</button>
+                <button className={"tab " + (manualMode === "text" ? "on" : "")} onClick={() => { setManualMode("text"); setManualErr(""); }}>Văn bản</button>
               </div>
+              {manualMode === "link" ? (
+                <>
+                  <div className="fieldlab">Dán link tin tức (báo, fanpage, bài viết bất kỳ)</div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input
+                      className="mini"
+                      style={{ flex: 1 }}
+                      placeholder="https://..."
+                      value={manualUrl}
+                      onChange={(e) => setManualUrl(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") openManualUrl(); }}
+                    />
+                    <button className="btn sm" disabled={!manualUrl.trim() || busy === "summary"} onClick={openManualUrl}>
+                      {busy === "summary" ? "Đang xử lý…" : "Dùng link này →"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="fieldlab">Dán hoặc nhập thẳng nội dung (không cần link)</div>
+                  <textarea
+                    className="mini autogrow"
+                    style={{ width: "100%", minHeight: 90 }}
+                    placeholder="Nhập đoạn văn bản tin tức ở đây…"
+                    value={manualText}
+                    onChange={(e) => setManualText(e.target.value)}
+                  />
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+                    <button className="btn sm" disabled={!manualText.trim() || busy === "summary"} onClick={openManualText}>
+                      {busy === "summary" ? "Đang xử lý…" : "Dùng văn bản này →"}
+                    </button>
+                  </div>
+                </>
+              )}
               {manualErr && <div className="muted" style={{ color: "var(--danger, #e35)", marginTop: 6, fontSize: 12.5 }}>{manualErr}</div>}
             </div>
             <div className="tabs">{CATS.map((c) => <button key={c.key} className={"tab " + (cat === c.key ? "on" : "")} onClick={() => setCat(c.key)}>{c.name}</button>)}</div>
@@ -340,7 +375,7 @@ export default function Workflow() {
           <>
             <div className="head"><h2>Summary</h2></div>
             <div className="card">
-              <h2 style={{ fontSize: 18, lineHeight: 1.3 }}>{article.title || article.url}</h2>
+              <h2 style={{ fontSize: 18, lineHeight: 1.3 }}>{article.title || article.url || "Văn bản nhập tay"}</h2>
               <div className="a-meta" style={{ margin: "8px 0 14px" }}><span className="chip">{article.source}</span><span className="chip">{CATNAME[article.category] || article.category}</span></div>
               {busy === "summary" ? <p className="muted">Summarising…</p> : summary && (
                 <>
