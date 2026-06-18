@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { requireUser, isAdmin } from "@/lib/auth";
 import { adminDb } from "@/lib/firebaseAdmin";
+import { withFreshLogoUrls } from "@/lib/logoUrls";
 
 export const dynamic = "force-dynamic";
 
@@ -16,9 +17,10 @@ export async function GET(req: Request) {
     adminDb.collection("articleCandidates").orderBy("score", "desc").limit(500).get(),
     adminDb.collection("config").doc("channels").collection("items").get(),
   ]);
+  const channelsWithLogos = await withFreshLogoUrls(channels.docs.map((d) => ({ id: d.id, ...d.data() })));
   return NextResponse.json({
     isAdmin: isAdmin(user.email),
     news: news.docs.map((d) => d.data()),
-    channels: channels.docs.map((d) => ({ id: d.id, ...d.data() })),
+    channels: channelsWithLogos,
   });
 }

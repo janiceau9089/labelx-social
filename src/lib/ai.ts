@@ -5,11 +5,17 @@
 // the provider functions just turn (system, user) into text.
 import type { Channel } from "./types";
 
+// Default models used when GEMINI_MODEL / ANTHROPIC_MODEL env vars aren't
+// set. Override via env vars in Vercel/.env.local — update these constants
+// when Anthropic/Google ship a newer model you want as the new default.
+const DEFAULT_GEMINI_MODEL = "gemini-2.0-flash";
+const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
+
 type LLM = (system: string, user: string, maxTokens: number) => Promise<string>;
 
 /** Google Gemini via REST (no SDK dep). Forces JSON output. */
 async function callGemini(system: string, user: string, maxTokens: number): Promise<string> {
-  const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  const model = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("GEMINI_API_KEY is not set");
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
@@ -32,7 +38,7 @@ async function callAnthropic(system: string, user: string, maxTokens: number): P
   const Anthropic = (await import("@anthropic-ai/sdk")).default;
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const res = await client.messages.create({
-    model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6",
+    model: process.env.ANTHROPIC_MODEL || DEFAULT_ANTHROPIC_MODEL,
     max_tokens: maxTokens,
     system,
     messages: [{ role: "user", content: user }],

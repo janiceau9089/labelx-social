@@ -15,7 +15,7 @@ import ChannelLinksPanel from "@/components/ChannelLinksPanel";
 /* ---------- types ---------- */
 type Channel = {
   id: string; name: string; platform: "FB" | "IG"; tone: string; age: string;
-  color: string; allowColor: boolean; tags: string[]; cta: string; pageUrl?: string; logoDataUrl?: string;
+  color: string; allowColor: boolean; tags: string[]; cta: string; pageUrl?: string; logoUrl?: string; logoDataUrl?: string;
 };
 type Article = {
   id: string; source: string; title: string; url: string;
@@ -86,12 +86,18 @@ function fileToImg(file: File): Promise<HTMLImageElement> {
 // Cache loaded logo images by channel id so the canvas can draw them synchronously.
 const logoCache: Record<string, HTMLImageElement> = {};
 function getLogoImg(ch: Channel, onReady: () => void): HTMLImageElement | null {
-  if (!ch.logoDataUrl) return null;
+  const src = ch.logoUrl || ch.logoDataUrl;
+  if (!src) return null;
   const cached = logoCache[ch.id];
-  if (cached) return cached.complete ? cached : null;
+  if (cached && cached.src === src) return cached.complete ? cached : null;
   const img = new Image();
+  // logoUrl points to Firebase Storage (a different origin) — without this,
+  // drawing it onto the canvas taints the canvas and toDataURL() silently
+  // fails on export. Base64 data URLs (legacy logoDataUrl) are same-origin
+  // and unaffected, but setting this is harmless for them too.
+  img.crossOrigin = "anonymous";
   img.onload = onReady;
-  img.src = ch.logoDataUrl;
+  img.src = src;
   logoCache[ch.id] = img;
   return img.complete ? img : null;
 }

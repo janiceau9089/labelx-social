@@ -1,0 +1,16 @@
+rules_version = '2';
+// LabelX Storage rules.
+// Channel logos are uploaded server-side only (via the Admin SDK in
+// /api/admin/channels/logo) and read via short-lived signed URLs generated
+// server-side (see src/lib/logoUrls.ts) — signed URLs carry their own
+// embedded auth and bypass these rules entirely, so no client-side `read`
+// grant is needed here. These rules exist purely to block any *direct*,
+// unsigned client access to the bucket.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read: if false;
+      allow write: if false;
+    }
+  }
+}

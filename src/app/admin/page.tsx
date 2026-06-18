@@ -9,13 +9,15 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, authFetch } from "@/lib/useAuth";
 import type { Channel, NewsSource } from "@/lib/types";
+import type { User } from "firebase/auth";
 import ChannelLinksPanel from "@/components/ChannelLinksPanel";
 
 /* ─── extended Channel type with brand identity fields ─── */
 export interface BrandChannel extends Channel {
   logoInitial?: string;       // 1-2 char fallback if no logo URL
-  logoUrl?: string;           // URL to uploaded logo (Firebase Storage path)
-  logoDataUrl?: string;       // base64 data URL stored in Firestore (small logos only)
+  logoUrl?: string;           // freshly-signed preview URL (transient — never sent in submit())
+  logoPath?: string;          // stable Storage object path — this is what gets persisted
+  logoDataUrl?: string;       // legacy base64 data URL (channels not yet migrated to Storage)
   pageUrl?: string;           // live FB/IG page URL — used by the channel link panel
   frameStyle?: "solid" | "gradient" | "outline" | "none";
   writingDo?: string[];       // do rules for AI rewrite
@@ -217,13 +219,16 @@ function ChannelForm({
   initial,
   onSave,
   onCancel,
+  user,
 }: {
   initial?: Partial<BrandChannel>;
   onSave: (c: BrandChannel) => Promise<void>;
   onCancel: () => void;
+  user: User | null;
 }) {
   const isNew = !initial?.id;
   const [f, setF] = useState<Partial<BrandChannel>>({
+    id: initial?.id || "ch_" + Date.now(),
     name: "",
     platform: "FB",
     tone: "Premium editorial",
@@ -233,13 +238,16 @@ function ChannelForm({
     tags: [],
     cta: "",
     logoInitial: "",
-    logoDataUrl: "",
+    logoUrl: "",
+    logoPath: "",
     frameStyle: "solid",
     description: "",
     writingDo: [""],
     writingDont: [""],
     ...initial,
   });
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoErr, setLogoErr] = useState("");
   const [tagInput, setTagInput] = useState((initial?.tags || []).join(" "));
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
@@ -266,8 +274,9 @@ function ChannelForm({
     setErr("");
     try {
       const tags = tagInput.split(/\s+/).map((t) => t.trim()).filter(Boolean).map((t) => t.startsWith("#") ? t : "#" + t);
+      const { logoUrl, ...rest } = f; // logoUrl is a signed preview URL — never persisted, server strips it too as a safety net
       await onSave({
-        ...f,
+        ...rest,
         id: f.id || "ch_" + Date.now(),
         tags,
         writingDo: (f.writingDo || []).filter(Boolean),
@@ -355,37 +364,63 @@ function ChannelForm({
             {/* preview */}
             <div style={{
               width: 44, height: 44, borderRadius: f.platform === "IG" ? "50%" : 10,
-              background: f.logoDataUrl ? "transparent" : (f.color || "#333"),
+              background: f.logoUrl ? "transparent" : (f.color || "#333"),
               border: "2px solid var(--line)", flexShrink: 0, overflow: "hidden",
               display: "flex", alignItems: "center", justifyContent: "center",
               fontWeight: 800, fontSize: 14, color: f.color === "#ffffff" ? "#000" : "#fff",
             }}>
-              {f.logoDataUrl
+              {f.logoUrl
                 // eslint-disable-next-line @next/next/no-img-element
-                ? <img src={f.logoDataUrl} alt="logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ? <img src={f.logoUrl} alt="logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 : (f.logoInitial || initials(f.name || "AB"))}
             </div>
             <div style={{ flex: 1 }}>
-              <label className="btn ghost sm" style={{ cursor: "pointer", display: "inline-block" }}>
-                Upload
+              <label className="btn ghost sm" style={{ cursor: uploadingLogo ? "default" : "pointer", display: "inline-block", opacity: uploadingLogo ? .6 : 1 }}>
+                {uploadingLogo ? "Uploading…" : "Upload"}
                 <input
                   type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                  style={{ display: "none" }}
-                  onChange={(e) => {
+                  style={{ display: "none" }} disabled={uploadingLogo}
+                  onChange={async (e) => {
                     const file = e.target.files?.[0];
-                    if (!file) return;
-                    if (file.size > 200 * 1024) { alert("Logo must be under 200KB"); return; }
-                    const reader = new FileReader();
-                    reader.onload = (ev) => set("logoDataUrl", ev.target?.result as string);
-                    reader.readAsDataURL(file);
+                    if (!file || !user) return;
+                    if (file.size > 200 * 1024) { setLogoErr("Logo must be under 200KB"); return; }
+                    setLogoErr(""); setUploadingLogo(true);
+                    try {
+                      const dataUrl: string = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => resolve(ev.target?.result as string);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(file);
+                      });
+                      const r = await authFetch(user, "/api/admin/channels/logo", {
+                        method: "POST",
+                        body: JSON.stringify({ channelId: f.id, dataUrl }),
+                      });
+                      if (!r.ok) throw new Error(await r.text());
+                      const { logoUrl, logoPath } = await r.json();
+                      setF((p) => ({ ...p, logoUrl, logoPath }));
+                    } catch (err) {
+                      setLogoErr((err as Error).message || "Upload failed");
+                    } finally {
+                      setUploadingLogo(false);
+                    }
                   }}
                 />
               </label>
-              {f.logoDataUrl && (
-                <button className="btn ghost sm" style={{ marginLeft: 6, color: "var(--danger)" }} onClick={() => set("logoDataUrl", "")}>Remove</button>
+              {f.logoUrl && (
+                <button
+                  className="btn ghost sm" style={{ marginLeft: 6, color: "var(--danger)" }}
+                  disabled={uploadingLogo}
+                  onClick={async () => {
+                    if (!user) return;
+                    setF((p) => ({ ...p, logoUrl: "", logoPath: "" }));
+                    try { await authFetch(user, `/api/admin/channels/logo?channelId=${f.id}`, { method: "DELETE" }); } catch { /* best-effort cleanup */ }
+                  }}
+                >Remove</button>
               )}
             </div>
           </div>
+          {logoErr && <div className="muted" style={{ color: "var(--danger, #e35)", marginTop: 6, fontSize: 12.5 }}>{logoErr}</div>}
           <label style={{ marginTop: 10 }}>Initials fallback</label>
           <input
             value={f.logoInitial}
@@ -534,15 +569,15 @@ function ChannelCard({ ch, onEdit, onDelete, canEdit }: { ch: BrandChannel; onEd
           {/* logo avatar */}
           <div style={{
             width: 44, height: 44, borderRadius: ch.platform === "IG" ? "50%" : 12,
-            background: bc.logoDataUrl ? "transparent" : (ch.color || "#fff"),
+            background: (bc.logoUrl || bc.logoDataUrl) ? "transparent" : (ch.color || "#fff"),
             color: ch.color === "#ffffff" ? "#000" : "#fff",
             display: "flex", alignItems: "center", justifyContent: "center",
             fontWeight: 800, fontSize: 15, fontFamily: "Wix Madefor Display, Inter, sans-serif",
             flexShrink: 0, border: "2px solid var(--line)", overflow: "hidden",
           }}>
-            {bc.logoDataUrl
+            {(bc.logoUrl || bc.logoDataUrl)
               // eslint-disable-next-line @next/next/no-img-element
-              ? <img src={bc.logoDataUrl} alt={ch.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ? <img src={bc.logoUrl || bc.logoDataUrl} alt={ch.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               : (bc.logoInitial || initials(ch.name))}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -822,6 +857,7 @@ export default function Admin() {
                   initial={editingChannel === "new" ? {} : editingChannel}
                   onSave={saveChannel}
                   onCancel={() => setEditingChannel(null)}
+                  user={user}
                 />
               </div>
             )}
