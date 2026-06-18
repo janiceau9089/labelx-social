@@ -14,7 +14,7 @@ import type { User } from "firebase/auth";
 /* ---------- types ---------- */
 type Channel = {
   id: string; name: string; platform: "FB" | "IG"; tone: string; age: string;
-  color: string; allowColor: boolean; tags: string[]; cta: string; pageUrl?: string; logoDataUrl?: string;
+  color: string; allowColor: boolean; tags: string[]; cta: string;
 };
 type Article = {
   id: string; source: string; title: string; url: string;
@@ -81,20 +81,7 @@ function fileToImg(file: File): Promise<HTMLImageElement> {
 }
 
 /* ---------- canvas ---------- */
-// Cache loaded logo images by channel id so the canvas can draw them synchronously.
-const logoCache: Record<string, HTMLImageElement> = {};
-function getLogoImg(ch: Channel, onReady: () => void): HTMLImageElement | null {
-  if (!ch.logoDataUrl) return null;
-  const cached = logoCache[ch.id];
-  if (cached) return cached.complete ? cached : null;
-  const img = new Image();
-  img.onload = onReady;
-  img.src = ch.logoDataUrl;
-  logoCache[ch.id] = img;
-  return img.complete ? img : null;
-}
-
-function drawCover(cv: HTMLCanvasElement | null, p: Post, source: string, onLogoReady?: () => void) {
+function drawCover(cv: HTMLCanvasElement | null, p: Post, source: string) {
   if (!cv) return;
   const x = cv.getContext("2d"); if (!x) return;
   const W = 540, H = 540, cover = p.photos[0];
@@ -113,23 +100,7 @@ function drawCover(cv: HTMLCanvasElement | null, p: Post, source: string, onLogo
   let yy = H - b * 3 - (lines.length - 1) * lh - 16;
   lines.forEach((ln) => { x.lineWidth = 5; x.strokeStyle = sc; x.strokeText(ln, W / 2, yy); x.fillStyle = tc; x.fillText(ln, W / 2, yy); yy += lh; });
   x.textAlign = "left";
-  if (p.logo) {
-    const logoImg = getLogoImg(p.ch, onLogoReady || (() => {}));
-    if (logoImg) {
-      const ls = 44; const lx = W - b - ls - 10, ly = b + 10;
-      if (p.ch.platform === "IG") {
-        x.save(); x.beginPath(); x.arc(lx + ls / 2, ly + ls / 2, ls / 2, 0, Math.PI * 2); x.closePath(); x.clip();
-        x.drawImage(logoImg, lx, ly, ls, ls); x.restore();
-      } else {
-        x.save(); const r = 8; x.beginPath();
-        x.moveTo(lx + r, ly); x.arcTo(lx + ls, ly, lx + ls, ly + ls, r); x.arcTo(lx + ls, ly + ls, lx, ly + ls, r);
-        x.arcTo(lx, ly + ls, lx, ly, r); x.arcTo(lx, ly, lx + ls, ly, r); x.closePath(); x.clip();
-        x.drawImage(logoImg, lx, ly, ls, ls); x.restore();
-      }
-    } else {
-      x.fillStyle = "rgba(255,255,255,.95)"; x.fillRect(W - b - 90, b + 12, 78, 24); x.fillStyle = "#000"; x.font = '800 12px "Wix Madefor Display",sans-serif'; x.fillText("✕LABELX", W - b - 84, b + 29);
-    }
-  }
+  if (p.logo) { x.fillStyle = "rgba(255,255,255,.95)"; x.fillRect(W - b - 90, b + 12, 78, 24); x.fillStyle = "#000"; x.font = '800 12px "Wix Madefor Display",sans-serif'; x.fillText("✕LABELX", W - b - 84, b + 29); }
   x.fillStyle = "rgba(255,255,255,.65)"; x.font = "10px Inter,sans-serif"; x.fillText("Nguồn: " + source, b + 6, H - b - 6);
 }
 function drawPlain(cv: HTMLCanvasElement, ph: Photo) {
@@ -139,8 +110,7 @@ function drawPlain(cv: HTMLCanvasElement, ph: Photo) {
 }
 function CoverCanvas({ id, post, source }: { id: string; post: Post; source: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const [, force] = useState(0);
-  useEffect(() => { drawCover(ref.current, post, source, () => force((n) => n + 1)); });
+  useEffect(() => { drawCover(ref.current, post, source); });
   return <canvas id={id} ref={ref} width={540} height={540} style={{ width: "100%" }} />;
 }
 
@@ -195,21 +165,14 @@ export default function Workflow() {
   const [posts, setPosts] = useState<Record<string, Post>>({});
   const [carIdx, setCarIdx] = useState(0);
   const [busy, setBusy] = useState("");
-  const [newsLoading, setNewsLoading] = useState(false);
-
-  const fetchNews = useCallback(async () => {
-    if (!user && !AUTH_DISABLED) return;
-    setNewsLoading(true);
-    try {
-      const r = await authFetch(user, "/api/news");
-      if (r.ok) { const d = await r.json(); setChannels(d.channels || []); setNews(d.news || []); }
-    } finally {
-      setNewsLoading(false);
-    }
-  }, [user]);
+  const [manualUrl, setManualUrl] = useState("");
+  const [manualErr, setManualErr] = useState("");
 
   useEffect(() => { if (!AUTH_DISABLED && !loading && !user) router.replace("/"); }, [loading, user, router]);
-  useEffect(() => { fetchNews(); }, [fetchNews]);
+  useEffect(() => {
+    if (!user && !AUTH_DISABLED) return;
+    authFetch(user, "/api/news").then(async (r) => { if (r.ok) { const d = await r.json(); setChannels(d.channels || []); setNews(d.news || []); } });
+  }, [user]);
 
   const setPost = useCallback((id: string, patch: Partial<Post>) => setPosts((all) => ({ ...all, [id]: { ...all[id], ...patch } })), []);
   const ordered = () => channels.filter((c) => selected.includes(c.id) && posts[c.id]);
@@ -221,6 +184,17 @@ export default function Workflow() {
     const r = await authFetch(user!, "/api/ai/summarize", { method: "POST", body: JSON.stringify({ title: a.title, excerpt: a.excerpt, source: a.source, url: a.url }) });
     setBusy("");
     if (r.ok) setSummary(await r.json()); else alert("Summarize failed: " + (await r.text()));
+  }
+  async function openManualUrl() {
+    setManualErr("");
+    let url = manualUrl.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+    let host = "";
+    try { host = new URL(url).hostname.replace(/^www\./, ""); } catch { setManualErr("Link không hợp lệ"); return; }
+    const a: Article = { id: "manual-" + Date.now(), source: host, title: "", url, category: "domestic", excerpt: "", score: 0, flags: [] };
+    setManualUrl("");
+    await openArticle(a);
   }
   function toggleChannel(id: string) { setSelected((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id]); }
   function toggleAll() { setSelected((s) => s.length === channels.length ? [] : channels.map((c) => c.id)); }
@@ -328,7 +302,24 @@ export default function Workflow() {
         {/* STEP 1 */}
         {step === 1 && (
           <>
-            <div className="head"><h2>News</h2><span className="muted" style={{ fontSize: 13 }}>{news.length} articles</span><div className="spacer" /><button className="btn ghost sm" onClick={fetchNews} disabled={newsLoading}>{newsLoading ? "Refreshing…" : "↻ Refresh"}</button></div>
+            <div className="head"><h2>News</h2></div>
+            <div className="card" style={{ padding: 12, marginBottom: 12 }}>
+              <div className="fieldlab">Dán link tin tức (báo, fanpage, bài viết bất kỳ)</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  className="mini"
+                  style={{ flex: 1 }}
+                  placeholder="https://..."
+                  value={manualUrl}
+                  onChange={(e) => setManualUrl(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") openManualUrl(); }}
+                />
+                <button className="btn sm" disabled={!manualUrl.trim() || busy === "summary"} onClick={openManualUrl}>
+                  {busy === "summary" ? "Đang xử lý…" : "Dùng link này →"}
+                </button>
+              </div>
+              {manualErr && <div className="muted" style={{ color: "var(--danger, #e35)", marginTop: 6, fontSize: 12.5 }}>{manualErr}</div>}
+            </div>
             <div className="tabs">{CATS.map((c) => <button key={c.key} className={"tab " + (cat === c.key ? "on" : "")} onClick={() => setCat(c.key)}>{c.name}</button>)}</div>
             <div className="card list">
               {list.length === 0 && <div className="muted" style={{ padding: 12 }}>No news yet. Run the collector or wait for the hourly cron.</div>}
@@ -349,7 +340,7 @@ export default function Workflow() {
           <>
             <div className="head"><h2>Summary</h2></div>
             <div className="card">
-              <h2 style={{ fontSize: 18, lineHeight: 1.3 }}>{article.title}</h2>
+              <h2 style={{ fontSize: 18, lineHeight: 1.3 }}>{article.title || article.url}</h2>
               <div className="a-meta" style={{ margin: "8px 0 14px" }}><span className="chip">{article.source}</span><span className="chip">{CATNAME[article.category] || article.category}</span></div>
               {busy === "summary" ? <p className="muted">Summarising…</p> : summary && (
                 <>
@@ -443,7 +434,7 @@ export default function Workflow() {
                     <div style={{ fontWeight: 600, fontSize: 12.5 }}>{p.title}</div>
                     <div className="fieldlab">Caption + hashtags + CTA <span className="retry" onClick={() => copy(fullText(p))} title="Copy all">⧉</span></div>
                     <div className="muted" style={{ whiteSpace: "pre-wrap", fontSize: 12, lineHeight: 1.55 }}>{fullText(p)}</div>
-                    <div className="subactions" style={{ justifyContent: "center" }}><button className="btn mini" onClick={() => downloadAll(c.id)}>⬇ Download {p.photos.length > 1 ? `(${p.photos.length})` : ""}</button><button className="btn ghost mini" onClick={() => copy(fullText(p))}>⧉ Copy</button>{c.pageUrl && <a className="btn ghost mini" href={c.pageUrl} target="_blank" rel="noreferrer">{c.platform === "IG" ? "📷" : "👍"} Open page</a>}</div>
+                    <div className="subactions" style={{ justifyContent: "center" }}><button className="btn mini" onClick={() => downloadAll(c.id)}>⬇ Download {p.photos.length > 1 ? `(${p.photos.length})` : ""}</button><button className="btn ghost mini" onClick={() => copy(fullText(p))}>⧉ Copy</button></div>
                   </div>
                 );
               })}

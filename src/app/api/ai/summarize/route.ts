@@ -14,12 +14,12 @@ export async function POST(req: Request) {
   }
   const body = await req.json();
   const { title, excerpt, source, url } = body || {};
-  if (!title || !source) {
-    return NextResponse.json({ error: "Missing title/source" }, { status: 400 });
+  if (!source || (!excerpt && !url)) {
+    return NextResponse.json({ error: "Missing source, and at least one of excerpt/url" }, { status: 400 });
   }
   try {
     const body2 = url ? await fetchArticleText(url) : "";
-    const result = await summarize({ title, excerpt: excerpt || "", source, url: url || "", body: body2 });
+    const result = await summarize({ title: title || "", excerpt: excerpt || "", source, url: url || "", body: body2 });
     return NextResponse.json(result);
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
