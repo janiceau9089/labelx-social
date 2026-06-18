@@ -18,7 +18,7 @@ type Channel = {
 };
 type Article = {
   id: string; source: string; title: string; url: string;
-  category: string; excerpt: string; score: number; flags: string[];
+  category: string; excerpt: string; score: number; flags: string[]; publishedAt?: number;
 };
 type Summary = { summary: string; keyFacts: string[]; riskFlags: string[]; aggressiveRewriteWarning: boolean };
 type Photo = { img: HTMLImageElement; kind: "web" | "article" | "upload"; offsetX: number; offsetY: number };
@@ -50,6 +50,7 @@ const IMG_COLORS = ["#3b4252", "#4a4458", "#2b2b2e", "#264653"];
 const FLAG_LABEL: Record<string, [string, string]> = {
   rumor: ["Rumor", "f-danger"], unverified: ["Unverified", "f-danger"], scandal: ["Scandal", "f-danger"],
   death: ["Death", "f-danger"], legal: ["Legal", "f-warn"], health: ["Health", "f-warn"], relationship: ["Relationship", "f-warn"],
+  "off-topic": ["Ngoài showbiz", "f-warn"],
 };
 
 function autoTagsFor(a: Article, variant = 0): string[] {
@@ -196,6 +197,8 @@ export default function Workflow() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [news, setNews] = useState<Article[]>([]);
   const [cat, setCat] = useState("all");
+  const [sortMode, setSortMode] = useState<"score" | "newest">("score");
+  const [hideRisky, setHideRisky] = useState(false);
   const [step, setStep] = useState(1);
   const [article, setArticle] = useState<Article | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -336,7 +339,10 @@ export default function Workflow() {
   }
   function copy(t: string) { navigator.clipboard?.writeText(t); }
 
-  const list = news.filter((a) => cat === "all" || a.category === cat);
+  const RISKY_FLAGS = new Set(["rumor", "unverified", "scandal"]);
+  let list = news.filter((a) => cat === "all" || a.category === cat);
+  if (hideRisky) list = list.filter((a) => !a.flags?.some((f) => RISKY_FLAGS.has(f)));
+  list = [...list].sort((a, b) => sortMode === "newest" ? (b.publishedAt || 0) - (a.publishedAt || 0) : b.score - a.score);
 
   return (
     <div id="app">
@@ -401,13 +407,24 @@ export default function Workflow() {
               {manualErr && <div className="muted" style={{ color: "var(--danger, #e35)", marginTop: 6, fontSize: 12.5 }}>{manualErr}</div>}
             </div>
             <div className="tabs">{CATS.map((c) => <button key={c.key} className={"tab " + (cat === c.key ? "on" : "")} onClick={() => setCat(c.key)}>{c.name}</button>)}</div>
+            <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap", margin: "8px 0 4px", fontSize: 12.5 }}>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <span className="muted">Sắp xếp:</span>
+                <button className={"tbtn " + (sortMode === "score" ? "on" : "")} onClick={() => setSortMode("score")}>Độ tin cậy / hot</button>
+                <button className={"tbtn " + (sortMode === "newest" ? "on" : "")} onClick={() => setSortMode("newest")}>Mới nhất</button>
+              </div>
+              <label style={{ display: "flex", gap: 5, alignItems: "center", cursor: "pointer" }}>
+                <input type="checkbox" checked={hideRisky} onChange={(e) => setHideRisky(e.target.checked)} />
+                <span className="muted">Ẩn tin đồn / chưa xác thực / scandal</span>
+              </label>
+            </div>
             <div className="card list">
               {list.length === 0 && <div className="muted" style={{ padding: 12 }}>No news yet. Run the collector or wait for the hourly cron.</div>}
               {list.map((a, i) => (
                 <div className="article" key={a.id} onClick={() => openArticle(a)}>
                   <div className="num">{i + 1}</div>
                   <div style={{ flex: 1 }}><div className="atitle">{a.title}</div>
-                    <div className="a-meta"><span>{a.source}</span><span className="chip">{CATNAME[a.category] || a.category}</span>{a.flags?.length > 0 && <span className="flag f-warn">Sensitive</span>}</div>
+                    <div className="a-meta"><span>{a.source}</span><span className="chip">{CATNAME[a.category] || a.category}</span>{a.flags?.map((f) => { const m = FLAG_LABEL[f] || [f, "f-warn"]; return <span key={f} className={"flag " + m[1]}>{m[0]}</span>; })}</div>
                   </div><div className="arrow">→</div>
                 </div>
               ))}

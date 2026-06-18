@@ -44,6 +44,23 @@ const RISK_RULES: [string, RegExp][] = [
   ["relationship", /chia tay|hẹn hò|ly hôn|tình cảm/i],
 ];
 
+// Topics that are clearly NOT showbiz/entertainment, even if they slip through
+// a mixed-category RSS feed (e.g. a general news outlet or a broad fanpage).
+const OFFTOPIC_BLACKLIST: RegExp =
+  /bóng đá|world cup|premier league|v-league|hlv trưởng|đội tuyển|huấn luyện viên|chứng khoán|vn-?index|lãi suất|ngân hàng nhà nước|giá xăng|giá vàng|quốc hội|chính phủ|bầu cử|thủ tướng|chủ tịch nước|tai nạn giao thông|động đất|bão số|thiên tai|covid|dịch bệnh|tòa án nhân dân(?!.*(ca sĩ|diễn viên|nghệ sĩ))/i;
+
+// Showbiz/entertainment signal words — presence of any of these is a strong
+// positive signal the article belongs in this tool's feed.
+const SHOWBIZ_WHITELIST: RegExp =
+  /ca sĩ|diễn viên|nghệ sĩ|người mẫu|hoa hậu|MV|album|liveshow|concert|sân khấu|showbiz|giải trí|nhạc sĩ|đạo diễn|biên kịch|phim ảnh|truyền hình|gameshow|reality show|idol|fan|fandom|Vpop|Kpop|BXH|bảng xếp hạng|lễ trao giải|đề cử|scandal|bê bối|chia tay|hẹn hò|tình cảm/i;
+
+/** True when the text looks like it does NOT belong in a showbiz feed. */
+function isOffTopic(text: string): boolean {
+  if (SHOWBIZ_WHITELIST.test(text)) return false; // strong showbiz signal — always keep
+  if (OFFTOPIC_BLACKLIST.test(text)) return true; // clearly non-showbiz topic — flag it
+  return false; // ambiguous (e.g. short excerpt) — don't flag, let admin judge from category/score
+}
+
 function categorize(text: string): string {
   for (const [cat, rx] of CAT_RULES) if (rx.test(text)) return cat;
   return "domestic";
@@ -53,13 +70,12 @@ function riskFlags(text: string): string[] {
 }
 
 /** Simple, admin-tunable ranking. */
-function score(a: { publishedAt: number; credibility: number; category: string; mentions: number }): number {
+function score(a: { publishedAt: number; credibility: number; category: string; mentions: number; offTopic?: boolean }): number {
   const ageHrs = (Date.now() - a.publishedAt) / 3.6e6;
   const recency = Math.max(0, 24 - ageHrs) / 24;          // 0..1
   const musicRelevant = ["mv", "album", "chart", "concert"].includes(a.category) ? 1 : 0.6;
-  return Math.round(
-    100 * (0.35 * recency + 0.2 * (a.credibility / 10) + 0.15 * musicRelevant + 0.3 * Math.min(1, a.mentions / 3))
-  );
+  const raw = 100 * (0.35 * recency + 0.2 * (a.credibility / 10) + 0.15 * musicRelevant + 0.3 * Math.min(1, a.mentions / 3));
+  return Math.round(a.offTopic ? raw * 0.4 : raw); // off-topic items rank much lower but stay visible
 }
 
 /**
@@ -149,6 +165,9 @@ export async function collectFromSources(sources: NewsSource[]): Promise<Article
   return items.map((r) => {
     const blob = `${r.title} ${r.excerpt}`;
     const category = categorize(blob);
+    const offTopic = isOffTopic(blob);
+    const flags = riskFlags(blob);
+    if (offTopic) flags.push("off-topic");
     return {
       id: Buffer.from(r.url).toString("base64url").slice(0, 40),
       source: r.source,
@@ -157,8 +176,8 @@ export async function collectFromSources(sources: NewsSource[]): Promise<Article
       publishedAt: r.publishedAt,
       category,
       excerpt: r.excerpt,
-      flags: riskFlags(blob),
-      score: score({ publishedAt: r.publishedAt, credibility: r.credibility, category, mentions: mentionOf(r.title) }),
+      flags,
+      score: score({ publishedAt: r.publishedAt, credibility: r.credibility, category, mentions: mentionOf(r.title), offTopic }),
       fetchedAt: now,
       expiresAt: now + 48 * 3.6e6,
     } as ArticleCandidate;
