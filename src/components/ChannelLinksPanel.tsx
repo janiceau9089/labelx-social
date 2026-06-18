@@ -40,7 +40,7 @@ function initials(name: string): string {
 }
 
 export default function ChannelLinksPanel({ channels }: { channels: PanelChannel[] }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const linked = channels.filter((c) => c.pageUrl);
 
   return (
