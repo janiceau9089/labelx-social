@@ -21,7 +21,7 @@ type Article = {
   category: string; excerpt: string; score: number; flags: string[];
 };
 type Summary = { summary: string; keyFacts: string[]; riskFlags: string[]; aggressiveRewriteWarning: boolean };
-type Photo = { img: HTMLImageElement; kind: "web" | "article" | "upload" };
+type Photo = { img: HTMLImageElement; kind: "web" | "article" | "upload"; offsetX: number; offsetY: number };
 type Post = {
   ch: Channel;
   titles: string[]; titleIdx: number; title: string;
@@ -85,7 +85,13 @@ function drawCover(cv: HTMLCanvasElement | null, p: Post, source: string) {
   if (!cv) return;
   const x = cv.getContext("2d"); if (!x) return;
   const W = 540, H = 540, cover = p.photos[0];
-  if (cover?.img) { const iw = cover.img.width, ih = cover.img.height, s = Math.max(W / iw, H / ih), dw = iw * s, dh = ih * s; x.drawImage(cover.img, (W - dw) / 2, (H - dh) / 2, dw, dh); }
+  if (cover?.img) {
+    const iw = cover.img.width, ih = cover.img.height, s = Math.max(W / iw, H / ih), dw = iw * s, dh = ih * s;
+    const maxPanX = Math.max(0, (dw - W) / 2), maxPanY = Math.max(0, (dh - H) / 2);
+    const dx = (W - dw) / 2 + (cover.offsetX || 0) * maxPanX;
+    const dy = (H - dh) / 2 + (cover.offsetY || 0) * maxPanY;
+    x.drawImage(cover.img, dx, dy, dw, dh);
+  }
   else { const c = IMG_COLORS[2]; const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, c); g.addColorStop(1, "#08080a"); x.fillStyle = g; x.fillRect(0, 0, W, H); x.fillStyle = "rgba(255,255,255,.05)"; x.font = "12px Inter,sans-serif"; x.textAlign = "left"; x.fillText("[ pick a cover image ]", W / 2 - 60, H / 2); }
   const fc = p.frame === "black" ? "#000" : p.frame === "premade" ? p.ch.color : p.frameColor;
   const b = 20; x.fillStyle = fc; x.fillRect(0, 0, W, b); x.fillRect(0, H - b * 3, W, b * 3); x.fillRect(0, 0, b, H); x.fillRect(W - b, 0, b, H);
@@ -106,12 +112,44 @@ function drawCover(cv: HTMLCanvasElement | null, p: Post, source: string) {
 function drawPlain(cv: HTMLCanvasElement, ph: Photo) {
   const x = cv.getContext("2d"); if (!x) return; const W = 540, H = 540;
   x.fillStyle = "#000"; x.fillRect(0, 0, W, H);
-  if (ph.img) { const iw = ph.img.width, ih = ph.img.height, s = Math.max(W / iw, H / ih), dw = iw * s, dh = ih * s; x.drawImage(ph.img, (W - dw) / 2, (H - dh) / 2, dw, dh); }
+  if (ph.img) {
+    const iw = ph.img.width, ih = ph.img.height, s = Math.max(W / iw, H / ih), dw = iw * s, dh = ih * s;
+    const maxPanX = Math.max(0, (dw - W) / 2), maxPanY = Math.max(0, (dh - H) / 2);
+    const dx = (W - dw) / 2 + (ph.offsetX || 0) * maxPanX;
+    const dy = (H - dh) / 2 + (ph.offsetY || 0) * maxPanY;
+    x.drawImage(ph.img, dx, dy, dw, dh);
+  }
 }
-function CoverCanvas({ id, post, source }: { id: string; post: Post; source: string }) {
+function CoverCanvas({ id, post, source, onPan }: { id: string; post: Post; source: string; onPan?: (dx: number, dy: number) => void }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
   useEffect(() => { drawCover(ref.current, post, source); });
-  return <canvas id={id} ref={ref} width={540} height={540} style={{ width: "100%" }} />;
+  const hasCover = !!post.photos[0]?.img;
+  const draggable = !!onPan && hasCover;
+  function onPointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (!draggable) return;
+    const cover = post.photos[0];
+    dragRef.current = { x: e.clientX, y: e.clientY, ox: cover.offsetX || 0, oy: cover.offsetY || 0 };
+    (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
+  }
+  function onPointerMove(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (!dragRef.current || !ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const dxPix = e.clientX - dragRef.current.x, dyPix = e.clientY - dragRef.current.y;
+    // Convert screen-pixel drag into -1..1 offset space (canvas is 540 square, scaled to rect.width).
+    const scale = 540 / rect.width;
+    const nx = dragRef.current.ox + (dxPix * scale) / 270;
+    const ny = dragRef.current.oy + (dyPix * scale) / 270;
+    onPan!(Math.max(-1, Math.min(1, nx)), Math.max(-1, Math.min(1, ny)));
+  }
+  function onPointerUp() { dragRef.current = null; }
+  return (
+    <canvas
+      id={id} ref={ref} width={540} height={540}
+      style={{ width: "100%", cursor: draggable ? "grab" : undefined, touchAction: draggable ? "none" : undefined }}
+      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp}
+    />
+  );
 }
 
 /* ---------- FB/IG preview ---------- */
@@ -120,12 +158,12 @@ function captionParts(p: Post, limit: number): { text: string; toggle: boolean; 
   if (p.capOpen || raw.length <= limit) return { text: raw, toggle: p.capOpen && raw.length > limit, less: true };
   return { text: raw.slice(0, limit).replace(/\s+\S*$/, "") + "… ", toggle: true, less: false };
 }
-function PostPreview({ id, post, source, onToggleCap }: { id: string; post: Post; source: string; onToggleCap: () => void }) {
+function PostPreview({ id, post, source, onToggleCap, onPan }: { id: string; post: Post; source: string; onToggleCap: () => void; onPan?: (dx: number, dy: number) => void }) {
   const ch = post.ch, n = post.photos.length;
   const avbg = ch.color === "#ffffff" ? "#111" : ch.color;
   const av = <div className="avatar" style={{ background: avbg }}>{(ch.name.replace("@", "")[0] || "L").toUpperCase()}</div>;
   const badge = n > 1 ? <div style={{ position: "absolute", top: 8, right: 10, background: "rgba(0,0,0,.6)", color: "#fff", fontSize: 11, padding: "2px 8px", borderRadius: 12 }}>1/{n} ▦</div> : null;
-  const canvas = <div className="post-img" style={{ position: "relative" }}>{badge}<CoverCanvas id={id} post={post} source={source} /></div>;
+  const canvas = <div className="post-img" style={{ position: "relative" }}>{badge}<CoverCanvas id={id} post={post} source={source} onPan={onPan} /></div>;
   if (ch.platform === "IG") {
     const c = captionParts(post, 110);
     return (
@@ -250,11 +288,18 @@ export default function Workflow() {
   }
   function removePhoto(id: string, idx: number) { setPosts((all) => { const p = all[id]; return { ...all, [id]: { ...p, photos: p.photos.filter((_, i) => i !== idx) } }; }); }
   function makeCover(id: string, idx: number) { setPosts((all) => { const p = all[id]; const ph = p.photos[idx]; const rest = p.photos.filter((_, i) => i !== idx); return { ...all, [id]: { ...p, photos: [ph, ...rest] } }; }); }
+  function setPhotoOffset(id: string, idx: number, offsetX: number, offsetY: number) {
+    setPosts((all) => {
+      const p = all[id]; if (!p || !p.photos[idx]) return all;
+      const photos = p.photos.slice(); photos[idx] = { ...photos[idx], offsetX, offsetY };
+      return { ...all, [id]: { ...p, photos } };
+    });
+  }
 
   async function onUploadFile(id: string, file?: File) {
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) { alert("Image too large — max 5 MB"); return; }
-    try { addPhoto(id, { img: await fileToImg(file), kind: "upload" }); } catch { alert("Couldn't read image"); }
+    try { addPhoto(id, { img: await fileToImg(file), kind: "upload", offsetX: 0, offsetY: 0 }); } catch { alert("Couldn't read image"); }
   }
   async function searchWeb(id: string) {
     const q = posts[id].query;
@@ -270,7 +315,7 @@ export default function Workflow() {
   }
   async function pickExternal(id: string, rawUrl: string, kind: "web" | "article") {
     setPost(id, { picking: true });
-    try { const img = await loadProxyImg(user!, rawUrl); addPhoto(id, { img, kind }); }
+    try { const img = await loadProxyImg(user!, rawUrl); addPhoto(id, { img, kind, offsetX: 0, offsetY: 0 }); }
     catch (e) { alert("Không tải được ảnh này (" + ((e as Error).message || "?") + "). Thử ảnh khác hoặc Upload."); }
     setPost(id, { picking: false });
   }
@@ -529,7 +574,17 @@ function Card4({ post, source, setPost, onSearch, onArticle, onUpload, onPick, o
 }) {
   const p = post, id = p.ch.id, ch = p.ch;
   const dot = <span className="dot" style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: ch.color, border: "1px solid #777" }} />;
-  const preview = <div style={{ minWidth: 300, flex: "0 0 auto" }}><PostPreview id={"cv4_" + id} post={p} source={source} onToggleCap={() => setPost(id, { capOpen: !p.capOpen })} /></div>;
+  const preview = <div style={{ minWidth: 300, flex: "0 0 auto" }}>
+    <PostPreview id={"cv4_" + id} post={p} source={source} onToggleCap={() => setPost(id, { capOpen: !p.capOpen })} onPan={(dx, dy) => setPost(id, { photos: p.photos.map((ph, i) => i === 0 ? { ...ph, offsetX: dx, offsetY: dy } : ph) })} />
+    {p.photos[0]?.img && (
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+        <span className="muted" style={{ fontSize: 11.5 }}>↕ Kéo ảnh để chỉnh vị trí hiển thị</span>
+        {(p.photos[0].offsetX !== 0 || p.photos[0].offsetY !== 0) && (
+          <span className="retry" style={{ fontSize: 11.5, cursor: "pointer" }} onClick={() => setPost(id, { photos: p.photos.map((ph, i) => i === 0 ? { ...ph, offsetX: 0, offsetY: 0 } : ph) })}>↺ Reset vị trí</span>
+        )}
+      </div>
+    )}
+  </div>;
 
   if (p.imgLocked) {
     return (
