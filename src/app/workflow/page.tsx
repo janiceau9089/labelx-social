@@ -21,7 +21,7 @@ type Article = {
   category: string; excerpt: string; score: number; flags: string[]; publishedAt?: number;
 };
 type Summary = { summary: string; keyFacts: string[]; riskFlags: string[]; aggressiveRewriteWarning: boolean };
-type Photo = { img: HTMLImageElement; kind: "web" | "article" | "upload"; offsetX: number; offsetY: number };
+type Photo = { img: HTMLImageElement; kind: "web" | "article" | "upload"; offsetX: number; offsetY: number; zoom: number };
 type Post = {
   ch: Channel;
   titles: string[]; titleIdx: number; title: string;
@@ -87,7 +87,8 @@ function drawCover(cv: HTMLCanvasElement | null, p: Post, source: string) {
   const x = cv.getContext("2d"); if (!x) return;
   const W = 540, H = 540, cover = p.photos[0];
   if (cover?.img) {
-    const iw = cover.img.width, ih = cover.img.height, s = Math.max(W / iw, H / ih), dw = iw * s, dh = ih * s;
+    const iw = cover.img.width, ih = cover.img.height, base = Math.max(W / iw, H / ih);
+    const s = base * (cover.zoom || 1), dw = iw * s, dh = ih * s;
     const maxPanX = Math.max(0, (dw - W) / 2), maxPanY = Math.max(0, (dh - H) / 2);
     const dx = (W - dw) / 2 + (cover.offsetX || 0) * maxPanX;
     const dy = (H - dh) / 2 + (cover.offsetY || 0) * maxPanY;
@@ -114,7 +115,8 @@ function drawPlain(cv: HTMLCanvasElement, ph: Photo) {
   const x = cv.getContext("2d"); if (!x) return; const W = 540, H = 540;
   x.fillStyle = "#000"; x.fillRect(0, 0, W, H);
   if (ph.img) {
-    const iw = ph.img.width, ih = ph.img.height, s = Math.max(W / iw, H / ih), dw = iw * s, dh = ih * s;
+    const iw = ph.img.width, ih = ph.img.height, base = Math.max(W / iw, H / ih);
+    const s = base * (ph.zoom || 1), dw = iw * s, dh = ih * s;
     const maxPanX = Math.max(0, (dw - W) / 2), maxPanY = Math.max(0, (dh - H) / 2);
     const dx = (W - dw) / 2 + (ph.offsetX || 0) * maxPanX;
     const dy = (H - dh) / 2 + (ph.offsetY || 0) * maxPanY;
@@ -302,7 +304,7 @@ export default function Workflow() {
   async function onUploadFile(id: string, file?: File) {
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) { alert("Image too large — max 5 MB"); return; }
-    try { addPhoto(id, { img: await fileToImg(file), kind: "upload", offsetX: 0, offsetY: 0 }); } catch { alert("Couldn't read image"); }
+    try { addPhoto(id, { img: await fileToImg(file), kind: "upload", offsetX: 0, offsetY: 0, zoom: 1 }); } catch { alert("Couldn't read image"); }
   }
   async function searchWeb(id: string) {
     const q = posts[id].query;
@@ -318,7 +320,7 @@ export default function Workflow() {
   }
   async function pickExternal(id: string, rawUrl: string, kind: "web" | "article") {
     setPost(id, { picking: true });
-    try { const img = await loadProxyImg(user!, rawUrl); addPhoto(id, { img, kind, offsetX: 0, offsetY: 0 }); }
+    try { const img = await loadProxyImg(user!, rawUrl); addPhoto(id, { img, kind, offsetX: 0, offsetY: 0, zoom: 1 }); }
     catch (e) { alert("Không tải được ảnh này (" + ((e as Error).message || "?") + "). Thử ảnh khác hoặc Upload."); }
     setPost(id, { picking: false });
   }
@@ -594,12 +596,27 @@ function Card4({ post, source, setPost, onSearch, onArticle, onUpload, onPick, o
   const preview = <div style={{ minWidth: 300, flex: "0 0 auto" }}>
     <PostPreview id={"cv4_" + id} post={p} source={source} onToggleCap={() => setPost(id, { capOpen: !p.capOpen })} onPan={(dx, dy) => setPost(id, { photos: p.photos.map((ph, i) => i === 0 ? { ...ph, offsetX: dx, offsetY: dy } : ph) })} />
     {p.photos[0]?.img && (
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
-        <span className="muted" style={{ fontSize: 11.5 }}>↕ Kéo ảnh để chỉnh vị trí hiển thị</span>
-        {(p.photos[0].offsetX !== 0 || p.photos[0].offsetY !== 0) && (
-          <span className="retry" style={{ fontSize: 11.5, cursor: "pointer" }} onClick={() => setPost(id, { photos: p.photos.map((ph, i) => i === 0 ? { ...ph, offsetX: 0, offsetY: 0 } : ph) })}>↺ Reset vị trí</span>
-        )}
-      </div>
+      <>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+          <span className="muted" style={{ fontSize: 11.5 }}>↕ Kéo ảnh để chỉnh vị trí hiển thị</span>
+          {(p.photos[0].offsetX !== 0 || p.photos[0].offsetY !== 0 || (p.photos[0].zoom || 1) !== 1) && (
+            <span className="retry" style={{ fontSize: 11.5, cursor: "pointer" }} onClick={() => setPost(id, { photos: p.photos.map((ph, i) => i === 0 ? { ...ph, offsetX: 0, offsetY: 0, zoom: 1 } : ph) })}>↺ Reset vị trí & zoom</span>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
+          <span className="muted" style={{ fontSize: 11.5 }}>🔍 Zoom</span>
+          <input
+            type="range" min={1} max={3} step={0.05}
+            value={p.photos[0].zoom || 1}
+            style={{ flex: 1 }}
+            onChange={(e) => {
+              const z = parseFloat(e.target.value);
+              setPost(id, { photos: p.photos.map((ph, i) => i === 0 ? { ...ph, zoom: z } : ph) });
+            }}
+          />
+          <span className="muted" style={{ fontSize: 11, minWidth: 30, textAlign: "right" }}>{(p.photos[0].zoom || 1).toFixed(2)}x</span>
+        </div>
+      </>
     )}
   </div>;
 
