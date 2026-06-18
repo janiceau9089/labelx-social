@@ -9,12 +9,14 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, authFetch } from "@/lib/useAuth";
 import type { Channel, NewsSource } from "@/lib/types";
+import ChannelLinksPanel from "@/components/ChannelLinksPanel";
 
 /* ─── extended Channel type with brand identity fields ─── */
 export interface BrandChannel extends Channel {
   logoInitial?: string;       // 1-2 char fallback if no logo URL
   logoUrl?: string;           // URL to uploaded logo (Firebase Storage path)
   logoDataUrl?: string;       // base64 data URL stored in Firestore (small logos only)
+  pageUrl?: string;           // live FB/IG page URL — used by the channel link panel
   frameStyle?: "solid" | "gradient" | "outline" | "none";
   writingDo?: string[];       // do rules for AI rewrite
   writingDont?: string[];     // don't rules for AI rewrite
@@ -392,6 +394,12 @@ function ChannelForm({
             maxLength={2}
             style={{ textTransform: "uppercase", letterSpacing: 2 }}
           />
+          <label style={{ marginTop: 10 }}>Page URL <span style={{ color: "var(--mut)", fontWeight: 400 }}>(link FB/IG thật của channel)</span></label>
+          <input
+            value={f.pageUrl || ""}
+            onChange={(e) => set("pageUrl", e.target.value)}
+            placeholder={f.platform === "IG" ? "https://www.instagram.com/..." : "https://www.facebook.com/..."}
+          />
         </div>
       </div>
 
@@ -724,6 +732,7 @@ export default function Admin() {
 
   return (
     <>
+      <ChannelLinksPanel channels={channels} />
       <header>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/labelx.png" alt="LabelX" style={{ height: 26, display: "block" }} />

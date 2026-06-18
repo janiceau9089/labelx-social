@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { useAuth, authFetch } from "@/lib/useAuth";
 import { AUTH_DISABLED } from "@/lib/config";
 import type { User } from "firebase/auth";
+import ChannelLinksPanel from "@/components/ChannelLinksPanel";
 
 /* ---------- types ---------- */
 type Channel = {
@@ -378,7 +379,9 @@ export default function Workflow() {
   list = [...list].sort((a, b) => sortMode === "newest" ? (b.publishedAt || 0) - (a.publishedAt || 0) : b.score - a.score);
 
   return (
-    <div id="app">
+    <>
+      <ChannelLinksPanel channels={channels} />
+      <div id="app">
       <header>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/labelx.png" alt="LabelX" style={{ height: 26, display: "block" }} />
@@ -579,7 +582,8 @@ export default function Workflow() {
         )}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
