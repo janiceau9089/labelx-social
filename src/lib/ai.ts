@@ -83,13 +83,19 @@ export async function rewrite(input: {
   channel: Channel; summary: string; keyFacts: string[]; source: string; artistHint?: string;
 }): Promise<RewriteResult> {
   const c = input.channel;
+  const audienceNote = c.description ? `Audience/page context: ${c.description}\n` : "";
+  const doRules = c.writingDo?.length ? `Writing rules — DO:\n${c.writingDo.map((d) => "- " + d).join("\n")}\n` : "";
+  const dontRules = c.writingDont?.length ? `Writing rules — DON'T:\n${c.writingDont.map((d) => "- " + d).join("\n")}\n` : "";
   const sys =
     "You rewrite an approved factual summary into a social caption for ONE channel. " +
     "Hard rules: keep facts accurate; invent nothing; no defamatory wording; no clickbait " +
     "that changes meaning; do not copy the source phrasing verbatim; mention the source. " +
+    "Follow the channel's writing DO/DON'T rules closely — they define this page's actual voice. " +
     "Write in Vietnamese. Adapt tone to the channel. Output ONLY JSON.";
   const user =
     `Channel: ${c.name} (${c.platform})\nVoice/tone: ${c.tone}\nAudience age: ${c.age}\n` +
+    audienceNote + doRules + dontRules +
+    `Approved summary: ${input.summary}\nKey facts: ${input.keyFacts.join("; ")}\n` +
     `Approved summary: ${input.summary}\nKey facts: ${input.keyFacts.join("; ")}\n` +
     `Source: ${input.source}\nArtist (if any): ${input.artistHint || "n/a"}\n\n` +
     `Return JSON: {"caption": string (1-2 short Vietnamese paragraphs, <=200 words, ` +

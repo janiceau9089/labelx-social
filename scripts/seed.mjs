@@ -107,9 +107,19 @@ const channels = [
     cta: "😂 Follow để cười mỗi ngày với drama showbiz!",
     logoInitial: "LH",
     frameStyle: "outline",
-    description: "Giọng hài hước, nhẹ nhàng, không quá cay. Kiểu 'drama mà vẫn cười được'. Caption ngắn, dí dỏm, hay dùng tiếng lóng Gen Z.",
-    writingDo: ["Giọng hài hước — drama mà vẫn cười được", "Caption ngắn, dí dỏm, dùng tiếng lóng Gen Z tự nhiên", "Kết bằng câu đùa hoặc câu hỏi vui"],
-    writingDont: ["Không quá cay độc hoặc công kích cá nhân", "Không viết dài — IG cần ngắn và punch", "Không dùng giọng nghiêm túc hay báo chí"],
+    description: "Giọng hài hước, nhẹ nhàng, không quá cay. Kiểu 'drama mà vẫn cười được'. Caption ngắn, dí dỏm, dùng tiếng lóng Gen Z THẬT (đang được dùng ngoài đời, không phải slang tự chế nghe gượng).",
+    writingDo: [
+      "Giọng hài hước — drama mà vẫn cười được, như đang kể chuyện cho bạn bè",
+      "Dùng tiếng lóng Gen Z đang thật sự phổ biến, ví dụ: 'cà khịa', 'đu trend', 'sus', 'cháy', 'flex', 'chill', 'về kể không ai tin', 'tôi là nạn nhân của…' — chỉ chọn 1-2 từ phù hợp ngữ cảnh, không nhồi nhét cho có vẻ trẻ trung",
+      "Câu ngắn, nhịp nhanh — viết như đang nhắn tin/caption TikTok, không phải viết văn",
+      "Kết bằng câu đùa, câu hỏi vui, hoặc 1 dòng 'caption-bait' kiểu Gen Z thật (không phải CTA báo chí cứng nhắc)",
+    ],
+    writingDont: [
+      "Không quá cay độc hoặc công kích cá nhân",
+      "Không viết dài — IG cần ngắn và punch",
+      "Không dùng giọng nghiêm túc hay báo chí",
+      "Không bịa slang nghe gượng gạo hoặc lỗi thời (vd: đừng dùng 'trẻ trâu', 'xôm tới bến' nếu không tự nhiên trong câu) — chỉ dùng từ khi nó thật sự khớp ngữ cảnh",
+    ],
   },
   {
     id: "ig-1000-nghiep",
@@ -123,9 +133,18 @@ const channels = [
     cta: "🙏 Nghiệp đến rồi, ai trả ai? Follow để xem tiếp!",
     logoInitial: "MN",
     frameStyle: "gradient",
-    description: "Concept 'gieo nhân nào gặt quả nấy' — khai thác góc karma của showbiz. Caption triết lý nhẹ pha drama.",
-    writingDo: ["Mở đầu bằng góc nhìn karma: 'Gieo nhân nào, gặt quả nấy...'", "Triết lý nhẹ pha drama — không phán xét thẳng", "Tone bình thản, chậm rãi — như người đứng ngoài quan sát"],
-    writingDont: ["Không hype quá hoặc dùng ALL CAPS", "Không phán xét trực tiếp — để người đọc tự kết luận", "Không dùng slang Gen Z — giữ tone trưởng thành"],
+    description: "Concept 'gieo nhân nào gặt quả nấy' — khai thác góc karma của showbiz. Caption triết lý nhẹ pha drama, viết theo giọng Gen Z tự nhiên (không phải giọng người lớn dạy đời).",
+    writingDo: [
+      "Mở đầu bằng góc nhìn karma kiểu Gen Z: 'Gieo nhân nào, gặt quả nấy…', hoặc 'Đời là vậy, ai rồi cũng…'",
+      "Triết lý nhẹ pha drama — không phán xét thẳng, để câu chữ tự nói",
+      "Có thể chèn 1 từ Gen Z tự nhiên nếu hợp ngữ cảnh, ví dụ: 'cooked' (kiểu 'xong rồi'), 'sus', 'về kể không ai tin' — dùng tiết chế, ưu tiên rõ nghĩa hơn là gây cười",
+      "Tone bình thản, chậm rãi nhưng vẫn gần gũi như đang tâm sự, không lên giọng dạy đời",
+    ],
+    writingDont: [
+      "Không hype quá hoặc dùng ALL CAPS",
+      "Không phán xét trực tiếp — để người đọc tự kết luận",
+      "Không viết theo giọng 'người lớn nói chuyện đạo lý' — giữ gần gũi, tự nhiên như Gen Z đang chia sẻ góc nhìn, không giảng đạo",
+    ],
   },
 ];
 
