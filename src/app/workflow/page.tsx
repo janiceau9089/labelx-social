@@ -364,17 +364,25 @@ export default function Workflow() {
 
   function downloadOne(canvasId: string, name: string) {
     const cv = document.getElementById(canvasId) as HTMLCanvasElement | null; if (!cv) return;
-    const a = document.createElement("a"); a.download = name; a.href = cv.toDataURL(); a.click();
+    try {
+      const a = document.createElement("a"); a.download = name; a.href = cv.toDataURL(); a.click();
+    } catch (e) {
+      alert("Không tải được ảnh — có thể logo hoặc ảnh nền chưa cho phép CORS. Thử tắt 'Show logo' ở Step 4 rồi tải lại, hoặc liên hệ kỹ thuật.\n\n" + (e as Error).message);
+    }
   }
   function downloadAll(id: string) {
     const p = posts[id];
     if (p.photos.length <= 1) { downloadOne("cv5_" + id, "labelx_" + id + ".png"); return; }
-    p.photos.forEach((ph, i) => {
-      let dataUrl: string;
-      if (i === 0) { const cv = document.getElementById("cv5_" + id) as HTMLCanvasElement; dataUrl = cv.toDataURL(); }
-      else { const off = document.createElement("canvas"); off.width = 540; off.height = 540; drawPlain(off, ph); dataUrl = off.toDataURL(); }
-      const a = document.createElement("a"); a.download = `labelx_${id}_${i + 1}.png`; a.href = dataUrl; a.click();
-    });
+    try {
+      p.photos.forEach((ph, i) => {
+        let dataUrl: string;
+        if (i === 0) { const cv = document.getElementById("cv5_" + id) as HTMLCanvasElement; dataUrl = cv.toDataURL(); }
+        else { const off = document.createElement("canvas"); off.width = 540; off.height = 540; drawPlain(off, ph); dataUrl = off.toDataURL(); }
+        const a = document.createElement("a"); a.download = `labelx_${id}_${i + 1}.png`; a.href = dataUrl; a.click();
+      });
+    } catch (e) {
+      alert("Không tải được ảnh — có thể logo hoặc ảnh nền chưa cho phép CORS. Thử tắt 'Show logo' ở Step 4 rồi tải lại, hoặc liên hệ kỹ thuật.\n\n" + (e as Error).message);
+    }
   }
   function copy(t: string) { navigator.clipboard?.writeText(t); }
 
