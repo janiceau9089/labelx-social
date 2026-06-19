@@ -86,19 +86,22 @@ function fileToImg(file: File): Promise<HTMLImageElement> {
 // Cache loaded logo images by channel id so the canvas can draw them synchronously.
 const logoCache: Record<string, HTMLImageElement> = {};
 function getLogoImg(ch: Channel, onReady: () => void): HTMLImageElement | null {
-  const src = ch.logoUrl || ch.logoDataUrl;
+  // logoUrl points to Firebase Storage signed URLs, which don't reliably
+  // return Access-Control-Allow-Origin headers (a known GCS quirk with
+  // signed URLs — see /api/images/proxy comment). Route it through our own
+  // proxy so the browser sees a same-origin image and never taints the
+  // canvas. logoDataUrl (legacy base64) is already same-origin and used as-is.
+  const raw = ch.logoUrl;
+  const src = raw ? `/api/images/proxy?url=${encodeURIComponent(raw)}` : ch.logoDataUrl;
   if (!src) return null;
-  const cached = logoCache[ch.id];
-  if (cached && cached.src === src) return cached.complete ? cached : null;
+  const cacheKey = ch.id + "|" + (raw || ch.logoDataUrl || "");
+  const cached = logoCache[cacheKey];
+  if (cached) return cached.complete ? cached : null;
   const img = new Image();
-  // logoUrl points to Firebase Storage (a different origin) — without this,
-  // drawing it onto the canvas taints the canvas and toDataURL() silently
-  // fails on export. Base64 data URLs (legacy logoDataUrl) are same-origin
-  // and unaffected, but setting this is harmless for them too.
   img.crossOrigin = "anonymous";
   img.onload = onReady;
   img.src = src;
-  logoCache[ch.id] = img;
+  logoCache[cacheKey] = img;
   return img.complete ? img : null;
 }
 
