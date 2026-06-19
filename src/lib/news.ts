@@ -19,10 +19,17 @@ const NAMED: Record<string, string> = {
   Iacute: "Í", Oacute: "Ó", Ocirc: "Ô", Uacute: "Ú", Yacute: "Ý",
 };
 export function decodeEntities(s: string): string {
-  return (s || "")
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
-    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
-    .replace(/&([a-zA-Z]+);/g, (m, n) => (NAMED[n] !== undefined ? NAMED[n] : m));
+  const once = (str: string) =>
+    str
+      .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+      .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+      .replace(/&([a-zA-Z]+);/g, (m, n) => (NAMED[n] !== undefined ? NAMED[n] : m));
+  // Some sources (notably via the rss.app proxy used for Facebook fanpages)
+  // double-encode entities, e.g. &amp;apos; — which only resolves to &apos;
+  // after one pass, and to ' after a second. A single extra pass is a no-op
+  // for normally-encoded text, so this is safe to always do.
+  const first = once(s || "");
+  return once(first);
 }
 
 // Light keyword sets for category + risk tagging.

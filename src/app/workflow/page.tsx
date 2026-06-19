@@ -254,10 +254,24 @@ export default function Workflow() {
   const [manualErr, setManualErr] = useState("");
 
   useEffect(() => { if (!AUTH_DISABLED && !loading && !user) router.replace("/"); }, [loading, user, router]);
-  useEffect(() => {
-    if (!user && !AUTH_DISABLED) return;
-    authFetch(user, "/api/news").then(async (r) => { if (r.ok) { const d = await r.json(); setChannels(d.channels || []); setNews(d.news || []); } });
+  const loadNews = useCallback(() => {
+    if (!user && !AUTH_DISABLED) return Promise.resolve();
+    return authFetch(user, "/api/news").then(async (r) => { if (r.ok) { const d = await r.json(); setChannels(d.channels || []); setNews(d.news || []); } });
   }, [user]);
+  useEffect(() => { loadNews(); }, [loadNews]);
+
+  async function refreshNews() {
+    setBusy("refresh");
+    try {
+      const r = await authFetch(user, "/api/news/refresh", { method: "POST" });
+      if (!r.ok) throw new Error(await r.text());
+      await loadNews();
+    } catch (e) {
+      alert("Làm mới tin tức thất bại: " + (e as Error).message);
+    } finally {
+      setBusy("");
+    }
+  }
 
   const setPost = useCallback((id: string, patch: Partial<Post>) => setPosts((all) => ({ ...all, [id]: { ...all[id], ...patch } })), []);
   const ordered = () => channels.filter((c) => selected.includes(c.id) && posts[c.id]);
@@ -417,7 +431,7 @@ export default function Workflow() {
         {/* STEP 1 */}
         {step === 1 && (
           <>
-            <div className="head"><h2>News</h2></div>
+            <div className="head" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}><h2>News</h2><button className="btn ghost sm" disabled={busy === "refresh"} onClick={refreshNews}>{busy === "refresh" ? "Đang làm mới…" : "🔄 Làm mới"}</button></div>
             <div className="card" style={{ padding: 12, marginBottom: 12 }}>
               <div className="tabs" style={{ marginBottom: 10 }}>
                 <button className={"tab " + (manualMode === "link" ? "on" : "")} onClick={() => { setManualMode("link"); setManualErr(""); }}>Link</button>
