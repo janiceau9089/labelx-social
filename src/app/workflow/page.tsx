@@ -65,6 +65,29 @@ function fullText(p: Post): string {
   return s;
 }
 
+/* Downscale a loaded image if it's larger than needed. The final canvas
+   output is always 540x540, so anything much bigger than that wastes
+   memory for no visual gain — and holding several full-res news photos
+   (sometimes 4000px+, several MB each as decoded bitmaps) across multiple
+   selected channels can exhaust the tab's memory and crash it. Caps the
+   long edge at 1080px (2x the canvas size, plenty of headroom for pan/zoom). */
+function downscaleImg(img: HTMLImageElement): Promise<HTMLImageElement> {
+  const MAX_EDGE = 1080;
+  const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+  if (Math.max(w, h) <= MAX_EDGE) return Promise.resolve(img);
+  const scale = MAX_EDGE / Math.max(w, h);
+  const cv = document.createElement("canvas");
+  cv.width = Math.round(w * scale); cv.height = Math.round(h * scale);
+  const ctx = cv.getContext("2d");
+  if (!ctx) return Promise.resolve(img);
+  ctx.drawImage(img, 0, 0, cv.width, cv.height);
+  return new Promise((res) => {
+    const out = new Image();
+    out.onload = () => res(out);
+    out.onerror = () => res(img); // fall back to the original if re-encoding somehow fails
+    out.src = cv.toDataURL("image/jpeg", 0.88);
+  });
+}
 /* Load an external image through our proxy → same-origin blob so the canvas
    stays exportable. Returns a loaded <img>. */
 async function loadProxyImg(user: User, rawUrl: string): Promise<HTMLImageElement> {
@@ -72,12 +95,13 @@ async function loadProxyImg(user: User, rawUrl: string): Promise<HTMLImageElemen
   if (!r.ok) throw new Error((await r.text()) || ("proxy " + r.status));
   const blob = await r.blob();
   const obj = URL.createObjectURL(blob);
-  return await new Promise((res, rej) => { const img = new Image(); img.onload = () => res(img); img.onerror = rej; img.src = obj; });
+  const img = await new Promise<HTMLImageElement>((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = obj; });
+  return downscaleImg(img);
 }
 function fileToImg(file: File): Promise<HTMLImageElement> {
   return new Promise((res, rej) => {
     const fr = new FileReader();
-    fr.onload = (e) => { const img = new Image(); img.onload = () => res(img); img.onerror = rej; img.src = e.target!.result as string; };
+    fr.onload = (e) => { const img = new Image(); img.onload = () => downscaleImg(img).then(res); img.onerror = rej; img.src = e.target!.result as string; };
     fr.onerror = rej; fr.readAsDataURL(file);
   });
 }
@@ -166,7 +190,7 @@ function CoverCanvas({ id, post, source, onPan }: { id: string; post: Post; sour
   const ref = useRef<HTMLCanvasElement>(null);
   const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
   const [, force] = useState(0);
-  useEffect(() => { drawCover(ref.current, post, source, () => force((n) => n + 1)); });
+  useEffect(() => { drawCover(ref.current, post, source, () => force((n) => n + 1)); }, [post, source]);
   const hasCover = !!post.photos[0]?.img;
   const draggable = !!onPan && hasCover;
   function onPointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
